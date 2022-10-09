@@ -41,21 +41,24 @@ check_apache2(){
 tar_creation(){
     tar -cvf /tmp/${first_name}-httpd-logs-${current_time}.tar /var/log/apache2/*.log && echo "[INFO] tar file created"
 }
+
+bookkeeping(){
+    size=$(du -sh /tmp/${first_name}-httpd-logs-${current_time}.tar | awk '{print $1}')
+    echo -e "httpd-logs\t${current_time}\ttar\t${size}" >> "${inventory_file_path}" && echo "[INFO] Entry made in inventory file"
+}
+
+
 send_file_to_s3(){
     SEND_TO_S3=$(aws s3 cp /tmp/${first_name}-httpd-logs-${current_time}.tar s3://${s3_bucket}/${first_name}-httpd-logs-${current_time}.tar)
     SEND_TO_S3_CHECK=$(echo $SEND_TO_S3 | grep -c "upload: ../../tmp/${first_name}-httpd-logs-${current_time}.tar to s3://${s3_bucket}/${first_name}-httpd-logs-${current_time}.tar" )
     if [ $SEND_TO_S3_CHECK = 1 ]
     then
         echo "[INFO] File uploaded to s3"
+	bookkeeping
     else
         echo "[ERROR] Error while uplaoding file to s3"
         exit 1
     fi
-}
-bookkeeping(){
-    echo $current_time
-    size=$(du -sh /tmp/${first_name}-httpd-logs-${current_time}.tar | awk '{print $1}')
-    echo -e "httpd-logs\t${current_time}\ttar\t${size}" >> "${inventory_file_path}" && echo "[INFO] Entry made in inventory file"
 }
 
 s3_transfer(){
@@ -106,5 +109,11 @@ else
 fi
 
 s3_transfer
+
+sudo touch /etc/cron.d/automation
+#At 08:00 on every day-of-week from Sunday through Saturday.
+sudo echo "0 8 * * 0-6 root /root/Automation_Project/automation.sh" > /etc/cron.d/automation && echo "[INFO] cronjob created"
+sudo chmod 600 /etc/cron.d/automation
+sudo crontab /etc/cron.d/automation && echo "[INFO] cronjob enabled"
 
 exit 0
